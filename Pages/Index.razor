@@ -1,0 +1,193 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+
+<PageTitle>@pageName</PageTitle>
+
+<div class="navbar fixed-top bg-light p-2">
+    <div class="align-content-center">
+        <div class="btn btn-menu file-input-zone oi oi-data-transfer-upload" >
+            <InputFile id="openFileBtn" OnChange="OnInputFileChange" single accept=".xkef" title="Open Data File" />
+        </div>
+        <!--
+        <button id="saveFileBtn" class="btn btn-menu oi oi-data-transfer-download" title="SAVE_TOOLTIP"></button>
+            <button class="btn btn-menu oi oi-image" title="IMAGE_TOOLTIP"></button>-->
+        <div class="btn btn-text">@TitleLabel</div>
+    </div>
+    <div class="float-right">
+        <button class="btn btn-menu btn-text" title="SHOW_LABEL" @onclick=ShowSubList>@goSubformLabel</button>
+        <!--<button class="btn btn-menu oi oi-info" title="INFO_TOOLTIP"></button>-->
+    </div>
+</div>
+
+<div id="mainWindow" class="main" >
+    <div class="main-visualiser" >
+        <div id="scrollback"></div>
+        @if (inputDropStatus == "") // "file-input-zone-drop"
+        {
+            <div class="file-input-zone-drop"><InputFile OnChange="OnInputFileChange" single accept=".xkef" title="Open Data File" /></div>
+        }
+
+        @if (fileLoaded)
+        {
+            <!-- This is the photo capture example
+            <video id="videoFeed" width="320" height="240" />
+            <canvas class="d-none" id="currentFrame" width="320" height="240" />
+            <br />
+            <button class="btn btn-primary mb-3" onclick="StartCapture">Start Capture</button> <br />
+            <button class="btn btn-primary mb-3" onclick="CaptureFrame">Capture Frame</button> <br />
+            <img class="f_photo w-50" src=captureSource />
+            -->
+
+            <div hidden=@(!hideList) >
+                <FormView sectionList=@formCList.SelectSingleNode("Sections") fieldAList=@formCList.SelectSingleNode("Fields")></FormView>
+            </div>
+            <div hidden=@hideList>
+                <SubList formsList=@projectData_Undo[0] subformList=@subformList GotoSubForm=@GotoSubForm></SubList>
+            </div>
+        }
+
+        <div>@debugText</div>
+
+    </div>
+</div>
+
+@code {
+    private string debugText = "Drag file here to open or click to browse";
+    private bool fileLoaded = false;
+    private string inputDropStatus = "";
+    private XmlDocument[] projectData_Undo { get; set; } = new XmlDocument[700];
+    private string pageName = "KEForms";
+    private string fileName = "KEF_new.xkef";
+    private string TitleLabel = "KEY ELEMENT FORMS";
+    //private XmlNodeList? formsList;
+    private XmlNode? subformList;
+    private XmlNode? formCList;
+    //private XmlNode? sectionList;
+    //private XmlNode? fieldAList;
+    //private XmlNode? calcList;
+    private string goSubformLabel = "";
+    private string restoreSubformLabel = "";
+    private bool hideList = true;
+    private string goBackID = "";
+    private string captureSource = "data:image/jpg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsK";
+    private bool isVideo = false;
+
+    private async Task StartCapture()
+    {
+        isVideo = !isVideo;
+        if (isVideo)
+        {
+            await JSRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+        } 
+        else 
+        {
+            await JSRuntime.InvokeVoidAsync("stopVideo", "videoFeed");
+        }
+    }
+    private async Task CaptureFrame()
+    {
+        await JSRuntime.InvokeAsync<String>("getFrame", "videoFeed", "currentFrame", DotNetObjectReference.Create(this));
+    }
+    [JSInvokable]
+    public void ProcessImage(string imageString)
+    {
+        Console.WriteLine(imageString);
+        captureSource = imageString;
+        //byte[] imageData = Convert.FromBase64String(imageString);
+        //Do image processing here
+    }
+
+    private async Task GetExample()
+    {
+        debugText = "Sending...";
+        var requestMessage = new HttpRequestMessage()
+            {
+                Method = new HttpMethod("GET"),
+                //RequestUri = new Uri("https://preprod-na.intelex.com/Login3/HeinzESGTest/api/v2/object/SPI_IndEnerRawDataObject"),
+                RequestUri = new Uri("https://clients.intelex.com/Login/Heinz/api/v2/object/EHSIncidentMang_OIIObject?$select=RecordNo,Description")
+                //, Content = new StringContent("")
+            };
+        //requestMessage.Headers.Add("Authorization", "ApiKey 06d596a89fdd412f9d036800e8de7f91");
+        requestMessage.Headers.Add("Authorization", "ApiKey 81f66aee13c74d929582fe0d7b34b77e");
+
+        // "https://PayPal.zerprize.co.nz/FMVConfirm.ashx?usr=Cz8qKQoNSTd1Ult3Twp1J28GKwsKJQE2HywFL3w1fkwoPTwLDA==" returns FALSE
+        // "https://PayPal.zerprize.co.nz/FMVConfirm.ashx?usr=Fyg5NAsdXSZ1Ult3Twp1J28GKwsKJQE2HywNL3wIewkoPTwLDA==" returns Rk1WXzBfMl8x
+        //var testreply = await Http.GetStringAsync("https://PayPal.zerprize.co.nz/FMVConfirm.ashx?usr=Fyg5NAsdXSZ1Ult3Twp1J28GKwsKJQE2HywNL3wIewkoPTwLDA==");
+
+        var testreply = await Http.SendAsync(requestMessage);
+        debugText = testreply.ReasonPhrase;
+        debugText += "\nReceiving...\n";
+        debugText += testreply.Headers.ToString();
+        debugText += await testreply.Content.ReadAsStringAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender && !hideList && goBackID != "")
+        {
+            JSRuntime.InvokeVoidAsync("scrollToTop", goBackID);
+            goBackID = "";
+        }
+    }
+
+    private async Task OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        debugText = "Loading data - please wait...";
+        fileLoaded = false;
+        var buffer = new byte[e.File.Size];
+        await e.File.OpenReadStream(maxAllowedSize: 1024 * 5000).ReadAsync(buffer);
+        //stateContainer.undoIndex = 0;
+        projectData_Undo = new XmlDocument[700];
+        projectData_Undo[0] = new XmlDocument();
+        projectData_Undo[0].LoadXml(Encoding.UTF8.GetString(buffer));
+        fileName = e.File.Name;
+        inputDropStatus = "file-input-zone-hide";
+        FileIsLoaded();
+    }
+    private void FileIsLoaded()
+    {
+        //var wif = new WICImagingFactory();
+        TitleLabel = $"{fileName.Replace(".xkef","")}: {projectData_Undo[0].SelectSingleNode("//dataroot/Application/Title")?.InnerText??""}";
+        goSubformLabel = projectData_Undo[0].SelectSingleNode("//dataroot/Application/FormTypes/@Title")?.Value??"";
+        restoreSubformLabel = goSubformLabel;
+        //formsList = projectData_Undo[0].SelectNodes("//dataroot/Forms[@T != \"\"]");
+        subformList = projectData_Undo[0].SelectSingleNode("//dataroot/Application");
+        formCList = projectData_Undo[0].SelectSingleNode("//dataroot/Application");
+        //sectionList = projectData_Undo[0].SelectSingleNode("//dataroot/Application/Sections");
+        //fieldAList = projectData_Undo[0].SelectSingleNode("//dataroot/Application/Fields");
+        //calcList = projectData_Undo[0].SelectSingleNode("//dataroot/Application/Calcs");
+
+        fileLoaded = true;
+        debugText = "";
+    }
+    private async void ShowSubList()
+    {
+        hideList = !hideList;
+        if (hideList) //This is the main Form View
+        {
+            TitleLabel = $"{fileName.Replace(".xkef", "")}: {projectData_Undo[0].SelectSingleNode("//dataroot/Application/Title")?.InnerText ?? ""}";
+            goSubformLabel = restoreSubformLabel;
+            await JSRuntime.InvokeVoidAsync("scrollToTop", "scrollback");
+        } 
+        else if (goSubformLabel=="< Back") //This is the second level Form List
+        {
+            TitleLabel = $"{fileName.Replace(".xkef", "")}: {projectData_Undo[0].SelectSingleNode("//dataroot/Application/FormTypes/@Title")?.InnerText ?? ""}";
+            formCList = projectData_Undo[0].SelectSingleNode("//dataroot/Application");
+        }
+        else //This is the third level Sub Form
+        {
+            goSubformLabel = "< Back";
+            await JSRuntime.InvokeVoidAsync("scrollToTop", "scrollback");
+        }
+    }
+    private void GotoSubForm(string FormType, string FormID)
+    {
+        formCList = projectData_Undo[0].SelectSingleNode($"//dataroot/Forms[@Type=\"{FormType}\" and @ID=\"{FormID}\"]");
+        TitleLabel = $"{FormType}: {formCList.SelectSingleNode("Title")?.InnerText ?? ""}";
+        hideList = true;
+        goBackID = FormID;
+        StateHasChanged();
+        JSRuntime.InvokeVoidAsync("scrollToTop", "scrollback");
+    }
+}

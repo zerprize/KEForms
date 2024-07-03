@@ -1,0 +1,52 @@
+﻿<div class="flex-column">
+    @foreach (XmlElement itemT in subformList.SelectNodes("FormTypes/TYPE")!)
+    {
+        var formCheck = subformList.SelectSingleNode("FormTypes/@Check").InnerText;
+        var tempColor = formsList.SelectSingleNode($"//dataroot/Forms[@T={itemT.GetAttribute("T")}]/Sections/@Color")?.InnerText ?? "#CCCCCC";
+        var tempChecked = itemT.InnerText == "true" ? true : false;
+        var formType = itemT.GetAttribute("Type");
+        <div class="flex-row p-1 ml-0 mb-1 font-weight-bold" style=@($"background-color: {tempColor}")>
+            @formType
+            <div class="float-right font-weight-normal">
+                <label for=@($"isChecked{itemT.GetAttribute("index")}")>@formCheck</label>
+                <input id=@($"isChecked{itemT.GetAttribute("index")}") type="checkbox" checked=@tempChecked class="p-1" />
+            </div>
+        </div>
+        <div class="flex-row mb-1">
+            @itemT.GetAttribute("Label")
+        </div>
+        foreach (XmlElement itemL in formsList.SelectNodes($"//dataroot/Forms[@Type=\"{formType}\"]"))
+        {
+            var tempLabel = "";
+            var tempIndex = 0;
+            foreach (XmlElement itemF in itemL.SelectNodes("Fields/FIELD"))
+            {
+                if (itemF.GetAttribute("Type") != "photo")
+                {
+                    tempLabel += itemF.InnerText;
+                    tempIndex += 1;
+                }
+                if (tempIndex == 1) { tempLabel += " - "; }
+                else if (tempIndex == 2) { break; }
+            }
+            <div id=@itemL.GetAttribute("ID") class="flex-row list_text" @onclick=@((e) => GotoSubForm(formType, itemL.GetAttribute("ID")))>
+                @tempLabel
+            </div>
+        }
+        <div class="flex-row mb-1"></div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public XmlNode? subformList { get; set; }
+    [Parameter]
+    public XmlNode? formsList { get; set; }
+    [Parameter]
+    public string? currentType { get; set; }
+    [Parameter]
+    public string? currentID { get; set; }
+    [Parameter]
+    public Action<string,string>? GotoSubForm { get; set; }
+
+}

@@ -1,0 +1,96 @@
+﻿<div class="col">
+    @if (sectionList is not null)
+    {
+        foreach (XmlElement itemS in sectionList.ChildNodes)
+        {
+            //var checkWidth = 0;
+            if (!String.IsNullOrEmpty(itemS.InnerXml))
+            {
+                string backColor = sectionList.SelectSingleNode("@Color")?.Value ?? "#CCCCCC";
+                int decR = Convert.ToInt32(backColor.Substring(1, 2), 16);
+                int decG = Convert.ToInt32(backColor.Substring(3, 2), 16);
+                int decB = Convert.ToInt32(backColor.Substring(5, 2), 16);
+                double max = Math.Max(decR, Math.Max(decG, decB));
+                double min = Math.Min(decR, Math.Min(decG, decB));
+                double l = (max + min) / 2D;
+                string textColor = "black";
+                if (l < 120) { textColor = "white"; }
+                Console.WriteLine($"luminosity = {l}");
+
+                <div class="row p-1 mb-1 s_text" style=@($"background-color:{backColor};color:{textColor}")>
+                    @itemS.InnerXml
+                </div>
+            }
+            else
+            {
+                <div class="row p-0 mb-1" style="color:black" />
+            }
+            <div class="row">
+                @if (fieldAList is not null)
+                {
+                    foreach (XmlElement itemF in fieldAList.SelectNodes($"FIELD[@S = {itemS.GetAttribute("S")}]")!)
+                    {
+                        var checkType = itemF.GetAttribute("Type");
+                        var fieldLabelWidth = double.Parse(itemF.GetAttribute("lwidth")) * 100;
+                        var fieldWidth = double.Parse(itemF.GetAttribute("width")) * 100;
+                        var fieldLabelAlign = checkType == "label" ? "text-left" : "text-right";
+                        var fieldAlign = "text-left";
+                        if (!String.IsNullOrEmpty(itemF.GetAttribute("align")))
+                        {
+                            if (checkType == "label")
+                            {
+                                fieldLabelAlign = $"text-{itemF.GetAttribute("align")}";
+                            }
+                            else
+                            {
+                                fieldAlign = $"text-{itemF.GetAttribute("align")}";
+                            }
+                        }
+                        if (fieldLabelWidth != 0 && !String.IsNullOrEmpty(itemF.GetAttribute("Label")))
+                        {
+                            <div class=@($"l_text {fieldLabelAlign}") style=@($"width:{fieldLabelWidth}%")>
+                                @itemF.GetAttribute("Label")
+                            </div>
+                        }
+                        Console.WriteLine($"checkType: {checkType}, fieldLabelWidth:{fieldLabelWidth}:{(int)Math.Round(fieldLabelWidth)}, fieldWidth:{fieldWidth}:{(int)Math.Round(fieldWidth)}");
+                        if (checkType == "photo")
+                        {
+                            <div class=@($"f_photo") style=@($"width:{fieldWidth}%")>
+                                @if (itemF.InnerXml.StartsWith("SUm")) //JPEG XR
+                                {
+                                    <img src=@($"data:image/bmp;base64,{itemF.InnerXml}") alt="JPEG XR Error" />
+                                }
+                                else if (itemF.InnerXml.StartsWith("iVB")) //iVBORw = PNG
+                                {
+                                    <img src=@($"data:image/png;base64,{itemF.InnerXml}") alt="green dot" />
+                                }
+                                else if (!string.IsNullOrEmpty(itemF.InnerXml)) ///9j/4AAQSk = JPG
+                                {
+                                    <img src=@($"data:image/jpg;base64,{itemF.InnerXml}") alt="Red dot" />
+                                }
+                                @if (itemF.GetAttribute("overlay").Length > 0 && itemF.GetAttribute("overlay").StartsWith("iVB"))
+                                {
+                                    <img class="photo_overlay" src=@($"data:image/png;base64,{itemF.GetAttribute("overlay")}") alt="Overlay" />
+                                }
+                            </div>
+                        }
+                        else if (checkType != "label")
+                        {
+                            <div class=@($"f_text {fieldAlign}") style=@($"width:{fieldWidth}%")>
+                                @itemF.InnerXml
+                            </div>
+                        }
+                    }
+                }
+
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public XmlNode? sectionList { get; set; }
+    [Parameter]
+    public XmlNode? fieldAList { get; set; }
+}
